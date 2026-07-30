@@ -1,3 +1,5 @@
+from imitator_plugins import hook, jput
+
 @hook("instead")
 def fancy_instead(_next, state):
     char = state["content"][0] # get first symbol from text

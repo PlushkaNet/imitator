@@ -1,3 +1,5 @@
+from imitator_plugins import hook
+
 @hook("instead")
 def stop_on_space(_next, state):
     char = state["content"][0] # get first symbol from text

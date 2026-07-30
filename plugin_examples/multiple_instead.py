@@ -1,3 +1,5 @@
+from imitator_plugins import hook, jput
+
 # this plugin will be in the middle of chain
 @hook("instead")
 def instead1(_next, state):
@@ -12,4 +14,4 @@ def instead2(_next, state):
     state["_val"] = state["content"][0]
     state["content"] = state["content"][1:]
     jput("2")
-    return _next(state) # give control to instead1
+    return _next(state) # give control to instead1 function

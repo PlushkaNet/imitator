@@ -112,7 +112,7 @@ class HookException(Exception):
 class NoSuchAction(HookException):
     """Raised if hook tryes to add itself on unknown action"""
 
-class UnknowMetaInfoDatatype(HookException):
+class UnknownMetaInfoDatatype(HookException):
     """Raised if author add incorrect matainfo type (such as int instead of dict)"""
 
 def add_hook(action: str, hook):
@@ -128,22 +128,14 @@ def hook(action: str):
 
 def add_metadata(info: dict[str, str]):
     if not isinstance(info, dict):
-        raise UnknowMetaInfoDatatype()
+        raise UnknownMetaInfoDatatype()
     memory["meta"].append(info)
 
 def load_hook_from_file(path: str):
     code = safe_open(path)
     try:
-        exec(code, globals={
-            "add_hook":add_hook,
-            "hook": hook,
-            "add_metadata":add_metadata,
-            "imitator_safe_open": safe_open,
-            "load_hook_from_file": load_hook_from_file,
-            "jput": jput,
-            "jprint": jprint,
-            "_io": io
-        })
+        namespace = {}
+        exec(code, globals=namespace, locals=namespace)
     except Exception as e:
         fatal(f"error was raised while loading hook {path!r}:\n{e}")
 
@@ -159,6 +151,23 @@ class _Next:
 
 def execute_action(action: str, state: dict, /) -> tuple:
     return _Next(memory["hooks"][action][:])(state)
+
+# ~~~ making module ~~~
+from types import ModuleType
+
+imitator_plugins = ModuleType("imitator_plugins")
+imitator_plugins.add_hook = add_hook
+imitator_plugins.hook = hook
+imitator_plugins.add_metadata = add_metadata
+imitator_plugins.safe_open = safe_open
+imitator_plugins.load_hook_from_file = load_hook_from_file
+imitator_plugins.jput = jput
+imitator_plugins.jprint = jprint
+imitator_plugins.TermIO = io
+imitator_plugins.NextType = _Next
+
+# exporting module
+sys.modules["imitator_plugins"] = imitator_plugins
 
 # ~~~ program logic ~~~
 import time # for printer mode

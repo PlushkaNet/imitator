@@ -107,6 +107,10 @@ python3 imitator.py -f example.txt -i fancy_print.py -m printer
 
 Plugins are written as Python files that define hooks using functions decorated with `@hook("action_name")`.
 
+### Imitator python API file
+
+Copy `imitator_plugins.pyi` to your workspace to get language server support (this is not necessary for writing plugins, but highly recommended)
+
 ### Hook Actions
 
 | Action | Description |
@@ -120,15 +124,16 @@ Plugins are written as Python files that define hooks using functions decorated 
 | `on_full_end` | Called when all loops are finished |
 | `on_start` | Called before anything starts |
 
-### Hook API
+### Hook API (see `imitator_plugins.py` for more details)
 | Method | Description |
 |--------|-------------|
 | `hook` | Decorator that register a hook |
 | `jput` | Puts character after a previous one |
 | `jprint` | Prints string after previous character |
-| `imitator_safe_open` | Safely open external files from filesystem using Imitator API |
+| `safe_open` | Safely open external files from filesystem using Imitator API |
 | `load_hook_from_file` | Load dependency hooks from file |
 | `add_metadata` | Add hook metadata |
+| `add_hook` | Function to register a hook. `hook` uses this internally |
 
 ---
 
@@ -136,6 +141,8 @@ Plugins are written as Python files that define hooks using functions decorated 
 
 > file `fancy_print.py`:
 ```python
+from imitator_plugins import hook, jput
+
 @hook("instead")
 def fancy_instead(_next, state):
     char = state["content"][0] # get first symbol from text
@@ -163,6 +170,8 @@ This will print uppercase letters and spaces as stars.
 
 > file `stop_on_space.py`:
 ```python
+from imitator_plugins import hook
+
 @hook("instead")
 def stop_on_space(_next, state):
     char = state["content"][0] # get first symbol from text
@@ -194,6 +203,8 @@ Here's a full plugin that modifies content and adds logging:
 
 > file `advanced_hook.py`:
 ```python
+from imitator_plugins import hook, jprint, jput
+
 @hook("init")
 def log_start(_next, state):
     jprint("Starting to print...\n\n") # put the whole string
@@ -228,6 +239,8 @@ python3 imitator.py -f example.txt -i advanced_hook.py -m printer
 
 > file `multiple_instead.py`:
 ```python
+from imitator_plugins import hook, jput
+
 # this plugin will be in the middle of chain
 @hook("instead")
 def instead1(_next, state):
@@ -242,7 +255,7 @@ def instead2(_next, state):
     state["_val"] = state["content"][0]
     state["content"] = state["content"][1:]
     jput("2")
-    return _next(state) # give control to instead1
+    return _next(state) # give control to instead1 function
 ```
 
 Run:

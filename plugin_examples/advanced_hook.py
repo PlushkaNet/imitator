@@ -1,3 +1,5 @@
+from imitator_plugins import hook, jprint, jput
+
 @hook("init")
 def log_start(_next, state):
     jprint("Starting to print...\n\n") # put the whole string
