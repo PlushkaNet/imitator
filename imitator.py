@@ -149,7 +149,7 @@ class _Next:
             return self._frame_stack.pop()(self, state)
         return state
 
-def execute_action(action: str, state: dict, /) -> tuple:
+def execute_action(action: str, state: dict, /) -> dict:
     return _Next(memory["hooks"][action][:])(state)
 
 # ~~~ making module ~~~
@@ -306,10 +306,10 @@ def main():
         fatal("no content set, probably to mistake in hooks")
 
     with RawTerminalSession():
-        if not state["mode"] or state["mode"] == "typer":
-            simulate(state["content"])
-        elif state["mode"] == "printer":
+        if not state["mode"] or state["mode"] == "printer":
             printer(state)
+        elif state["mode"] == "typer":
+            simulate(state["content"])
         else:
             fatal(f"no such mode: {args.mode!r}")
 

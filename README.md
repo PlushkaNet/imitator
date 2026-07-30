@@ -68,19 +68,19 @@ python3 imitator.py -f example.txt
 > *Note: this is equivalent to this:*
 
 ```bash
-python3 imitator.py -f example.txt -m typer
+python3 imitator.py -f example.txt -m printer
 ```
 
 **Print with Delay and Endless loop**
 
 ```bash
-python3 imitator.py -f example.txt -m printer -d 0.1 -l
+python3 imitator.py -f example.txt -d 0.1 -l
 ```
 
-> *or simply to run with defaults*:
+**Simulate printing by pressing on any buttons on keyboard**
 
 ```bash
-python3 imitator.py -f example.txt -m printer
+python3 imitator.py -f example.txt -m typer
 ```
 
 **Add Plugin Hook**
@@ -94,7 +94,7 @@ python3 imitator.py -f example.txt -i fancy_print.py -m printer
 | Option | Description |
 |--------|-------------|
 | `-f`, `--file` | Path to the file containing text to print/imitate. |
-| `-m`, `--mode` | Mode to run in (`typer` or `printer`). Default: `typer`. |
+| `-m`, `--mode` | Mode to run in (`printer` or `typer`). Default: `printer`. |
 | `-i`, `--include` | Include a hook plugin or a directory with plugins (can be used multiple times). |
 | `-d`, `--delay` | Delay between characters in seconds. Default: `0.01`. |
 | `-l`, `--loop` | Loop the text printing infinitely until interrupted. |
