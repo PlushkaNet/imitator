@@ -93,11 +93,33 @@ python3 imitator.py -f example.txt -i fancy_print.py -m printer
 
 | Option | Description |
 |--------|-------------|
+| `-h`, `--help` | Prints help and exits |
 | `-f`, `--file` | Path to the file containing text to print/imitate. |
 | `-m`, `--mode` | Mode to run in (`printer`, `typer`, `interactive`). Default: `printer`. |
 | `-i`, `--include` | Include a hook plugin or a directory with plugins (can be used multiple times). |
-| `-d`, `--delay` | Delay between characters in seconds. Default: `0.01`. |
-| `-l`, `--loop` | Loop the text printing infinitely until interrupted. |
+| `-d`, `--delay` | Delay between characters in seconds. Default: `0.01` (works only in `printer` mode). |
+| `-l`, `--loop` | Loop the text printing infinitely until interrupted (works only in `printer` mode). |
+| `-w`, `--wait-before-start` | Number of seconds to wait before the program starts |
+| `-v`, `--verbose` | Verbose output |
+
+`python3 imitator.py -h` output:
+
+```
+usage: imitator [-h] [-f FILE] [-m {typer,printer,interactive}] [-i INCLUDE] [-d DELAY] [-l] [-v] [-w WAIT_BEFORE_START]
+
+options:
+  -h, --help            show this help message and exit
+  -f, --file FILE       file to read from
+  -m, --mode {typer,printer,interactive}
+                        mode to be executed
+  -i, --include INCLUDE
+                        include hooks directory/file
+  -d, --delay DELAY     delay for printer
+  -l, --loop            loop printer or not
+  -v, --verbose         make output verbose
+  -w, --wait-before-start WAIT_BEFORE_START
+                        wait specified seconds before start
+```
 
 ---
 

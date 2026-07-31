@@ -276,7 +276,7 @@ def _default_after(_next: _Next, state: dict):
 
 # ~~~ main ~~~
 def main():
-    argparser = argparse.ArgumentParser("imitator")
+    argparser = argparse.ArgumentParser("imitator", allow_abbrev=False)
     argparser.add_argument(
         "-f", "--file",
         action="store",
@@ -313,19 +313,49 @@ def main():
         action="store_true",
         help="loop printer or not"
     )
+    argparser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="make output verbose"
+    )
+    argparser.add_argument(
+        "-w", "--wait-before-start",
+        action="store",
+        type=int,
+        help="wait specified seconds before start",
+        default=0
+    )
 
     args = argparser.parse_args()
 
+    loaded_i = 0
+
+    start_load_time = time.time()
     if args.include:
         import os
         def process(include: str):
+            nonlocal loaded_i
             if os.path.isdir(include):
                 for inc in os.listdir(include):
                     process(os.path.join(include, inc))
             else:
                 load_hook_from_file(include)
+                loaded_i += 1
         for include in args.include:
             process(include)
+    end_load_time = time.time()
+    
+    if args.verbose:
+        hooks_count = 0
+        for hooks in memory["hooks"].values():
+            hooks_count += len(hooks)
+        print(f"{loaded_i} plugins and {hooks_count} hooks loaded in {(end_load_time - start_load_time)*1000:0.4f} ms")
+
+    # get rid of unused variables
+    del start_load_time, end_load_time, loaded_i
+
+    if args.wait_before_start > 0:
+        time.sleep(args.wait_before_start)
 
     state = {
         "loop": args.loop,
