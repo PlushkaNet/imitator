@@ -6,7 +6,8 @@ from typing import Callable, Any
 
 Wrapped = Callable
 
-class NextType: ...
+class NextType:
+    def __call__(self, state: dict): ...
 
 class TermIO:
     @staticmethod
