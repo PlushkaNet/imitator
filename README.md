@@ -85,6 +85,9 @@ python3 imitator.py -f example.txt -m typer
 
 **Add Plugin Hook**
 
+> [!IMPORTANT]
+> Imitator runs plugins with the privileges of current process. This means that unknown plugins can damage your system. Use at your own risk
+
 ```bash
 python3 imitator.py -f example.txt -i fancy_print.py -m printer
 ```
