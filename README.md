@@ -94,7 +94,7 @@ python3 imitator.py -f example.txt -i fancy_print.py -m printer
 | Option | Description |
 |--------|-------------|
 | `-f`, `--file` | Path to the file containing text to print/imitate. |
-| `-m`, `--mode` | Mode to run in (`printer` or `typer`). Default: `printer`. |
+| `-m`, `--mode` | Mode to run in (`printer`, `typer`, `interactive`). Default: `printer`. |
 | `-i`, `--include` | Include a hook plugin or a directory with plugins (can be used multiple times). |
 | `-d`, `--delay` | Delay between characters in seconds. Default: `0.01`. |
 | `-l`, `--loop` | Loop the text printing infinitely until interrupted. |

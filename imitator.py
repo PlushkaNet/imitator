@@ -28,6 +28,12 @@ try:
 
         def __exit__(self, *_):
             pass
+    
+    def set_non_blocking_io():
+        pass
+    
+    def set_blocking_io():
+        pass
 
     def nonblockingio(func):
         return func
@@ -49,13 +55,19 @@ except ImportError:
         def __exit__(self, *_):
             termios.tcsetattr(self._fd, termios.TCSADRAIN, self._attr)
     
+    def set_non_blocking_io():
+        os.set_blocking(sys.stdin.fileno(), False)
+    
+    def set_blocking_io():
+        os.set_blocking(sys.stdin.fileno(), True)
+    
     def nonblockingio(func):
         def wrapper(*args, **kwargs):
-            os.set_blocking(sys.stdin.fileno(), False)
+            set_non_blocking_io()
             try:
                 return func(*args, **kwargs)
             finally:
-                os.set_blocking(sys.stdin.fileno(), True)
+                set_blocking_io()
         return wrapper
     
     def chkkeys():
@@ -153,6 +165,7 @@ def execute_action(action: str, state: dict, /) -> dict:
     return _Next(memory["hooks"][action][:])(state)
 
 # ~~~ making module ~~~
+from typing import Any
 from types import ModuleType
 
 imitator_plugins = ModuleType("imitator_plugins")
@@ -163,8 +176,12 @@ imitator_plugins.safe_open = safe_open
 imitator_plugins.load_hook_from_file = load_hook_from_file
 imitator_plugins.jput = jput
 imitator_plugins.jprint = jprint
+imitator_plugins.set_non_blocking_io = set_non_blocking_io
+imitator_plugins.set_blocking_io = set_blocking_io
 imitator_plugins.TermIO = io
 imitator_plugins.NextType = _Next
+imitator_plugins.StateType = dict[str, Any]
+imitator_plugins.HookAction = str
 
 # exporting module
 sys.modules["imitator_plugins"] = imitator_plugins
@@ -214,9 +231,9 @@ def printer_body(state: dict) -> bool:
     return False
 
 def printer(state: dict):
-    """mutates `content`"""
+    """mutates `state`"""
     state["printer_func"] = printer_body
-    content = state["content"] # immutate
+    content = state["content"] # immutable
     state = execute_action("init", state)
     if state["loop"]:
         finish = state["printer_func"](state)
@@ -224,18 +241,37 @@ def printer(state: dict):
             state = execute_action("on_end", state)
             if state.get("stop", False):
                 break
-            state["content"] = content # restore
+            state["content"] = content # restore from immutable
             finish = state["printer_func"](state)
     else:
         state["printer_func"](state)
     execute_action("on_full_end", state)
 
+def interactive(state: dict):
+    """mutates `state`"""
+    try:
+        state = execute_action("init", state)
+        while state["content"]:
+            state = execute_action("before", state)
+            state = execute_action("instead", state)
+            state = execute_action("after", state)
+    except KeyboardInterrupt:
+        state = execute_action("on_interrupt_occur", state)
+    state = execute_action("on_end", state)
+    execute_action("on_full_end", state)
+
 # ~~~ default behaviour ~~~
 @hook("instead")
-def _printer_default_instead(_next, state: dict):
+def _default_instead(_next: _Next, state: dict):
     state["_val"] = state["content"][0]
     jput(state["_val"])
     state["content"] = state["content"][1:]
+    return _next(state)
+
+@hook("after")
+def _default_after(_next: _Next, state: dict):
+    if state["mode"] == "interactive":
+        time.sleep(0.01)
     return _next(state)
 
 # ~~~ main ~~~
@@ -253,7 +289,8 @@ def main():
         type=str,
         choices=[
             "typer",
-            "printer"
+            "printer",
+            "interactive"
         ],
         help="mode to be executed",
         default=""
@@ -308,6 +345,8 @@ def main():
     with RawTerminalSession():
         if not state["mode"] or state["mode"] == "printer":
             printer(state)
+        elif state["mode"] == "interactive":
+            interactive(state)
         elif state["mode"] == "typer":
             simulate(state["content"])
         else:
