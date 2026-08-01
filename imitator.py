@@ -90,7 +90,7 @@ def jprint(s: str):
 
 # ~~~ common IO methods ~~~
 def fatal(msg: str):
-    print(msg)
+    print(f"fatal: {msg}")
     exit(1)
 
 def safe_open(path: str) -> str:
@@ -127,13 +127,22 @@ class NoSuchAction(HookException):
 class UnknownMetaInfoDatatype(HookException):
     """Raised if author add incorrect matainfo type (such as int instead of dict)"""
 
-def add_hook(action: str, hook):
+import typing
+
+HookAction = typing.Literal[
+    "before", "instead", "after", "init", "on_end",
+    "on_full_end", "on_start", "on_interrupt_occur"
+]
+
+StateType = dict[str, typing.Any]
+
+def add_hook(action: HookAction, hook):
     if action in memory["hooks"]:
         memory["hooks"][action].append(hook)
     else:
         raise NoSuchAction()
 
-def hook(action: str):
+def hook(action: HookAction):
     def wrapper(func):
         add_hook(action, func)
     return wrapper
@@ -156,35 +165,251 @@ class _Next:
     def __init__(self, frame_stack: list, /):
         self._frame_stack = frame_stack
     
-    def __call__(self, state: dict, /):
+    def __call__(self, state: StateType, /):
         if self._frame_stack:
             return self._frame_stack.pop()(self, state)
         return state
 
-def execute_action(action: str, state: dict, /) -> dict:
+def execute_action(action: HookAction, state: StateType, /) -> dict:
     return _Next(memory["hooks"][action][:])(state)
 
-# ~~~ making module ~~~
-from typing import Any
-from types import ModuleType
+# ~~~ runtime .pyi generation and module initialization tool ~~~
+import inspect
+from types import ModuleType, NoneType
+from typing import GenericAlias, Literal
 
-imitator_plugins = ModuleType("imitator_plugins")
-imitator_plugins.add_hook = add_hook
-imitator_plugins.hook = hook
-imitator_plugins.add_metadata = add_metadata
-imitator_plugins.safe_open = safe_open
-imitator_plugins.load_hook_from_file = load_hook_from_file
-imitator_plugins.jput = jput
-imitator_plugins.jprint = jprint
-imitator_plugins.set_non_blocking_io = set_non_blocking_io
-imitator_plugins.set_blocking_io = set_blocking_io
-imitator_plugins.TermIO = io
-imitator_plugins.NextType = _Next
-imitator_plugins.StateType = dict[str, Any]
-imitator_plugins.HookAction = str
+class PyiGenerationError(Exception):
+    """Base class for all pyi generation errors"""
+
+class RuntimeModulePyi:
+    """Runtime module export with hot pyi generation"""
+    PyiExportedFunctionType = tuple[str, str | None] # [declaration, doc]
+    WhatExportType = Literal["function", "class", "type", "variable"]
+
+    def __init__(self, name: str, doc: str | None = None, after_doc: str | None = None):
+        self._module = ModuleType(name, doc)
+        self._names = {}
+        self._pyi_code = ('"""' + doc + '"""\n') if doc else ""
+        self._pyi_code += after_doc + "\n" if after_doc else ""
+        self._python_tab = " "*4
+    
+    def manual_insert(self, text: str):
+        """Function for manually insert text into file"""
+        self._pyi_code += text + "\n"
+    
+    def manual_export(self, obj, custom_name: str):
+        """Function to export obj without generation pyi for it"""
+        self._export(obj, custom_name)
+
+    def _generate_type_alias_pyi(self, obj, _skip_self_check: bool = False) -> str:
+        pyi_code = ""
+        if not _skip_self_check and hasattr(obj, "__name__") and self._names.get(obj.__name__, None):
+            pyi_code += self._names[obj.__name__]
+        elif isinstance(obj, GenericAlias):
+            pyi_code = obj.__origin__.__name__ + "["
+            for arg in obj.__args__:
+                # pyrefly: ignore [unsupported-operation]
+                pyi_code += self._names.get(arg.__name__, self._generate_type_alias_pyi(arg))
+                pyi_code += ", "
+            pyi_code = pyi_code.removesuffix(", ") + "]"
+        elif isinstance(obj, type):
+            if obj == NoneType:
+                pyi_code += "None"
+            else:
+                pyi_code += self._names.get(obj.__name__, obj.__name__)
+        elif isinstance(obj, typing.Union):
+            for annotation_arg in obj.__args__:
+                pyi_code += self._generate_type_alias_pyi(annotation_arg) + " | "
+            pyi_code = pyi_code.removesuffix(" | ")
+        elif isinstance(obj, NoneType):
+            pyi_code += "None"
+        else:
+            raise PyiGenerationError(f"cannot generate .pyi interface for type: {obj!r}")
+
+        return pyi_code
+
+    def _generate_function_pyi(self, obj, name: str) -> PyiExportedFunctionType:
+        sig = inspect.signature(obj)
+        pyi_code = "def " + name + "("
+        pyi_doc = None
+        _pos_only = False
+        _kw_only = False
+        for varname, parameter in sig.parameters.items():
+            if parameter.kind == parameter.VAR_KEYWORD:
+                pyi_code += "**"
+            elif parameter.kind == parameter.VAR_POSITIONAL:
+                pyi_code += "*"
+            if _pos_only and parameter.kind != parameter.POSITIONAL_ONLY:
+                pyi_code += "/, "
+                _pos_only = False
+            if not _kw_only and parameter.kind == parameter.KEYWORD_ONLY:
+                pyi_code += "*, "
+                _kw_only = True
+            pyi_code += varname
+            if parameter.annotation is not inspect._empty:
+                pyi_code += ": " + self._generate_type_alias_pyi(parameter.annotation)
+            if parameter.default is not inspect.Parameter.empty:
+                pyi_code += " = ..."
+            pyi_code += ", "
+            if parameter.kind == parameter.POSITIONAL_ONLY:
+                _pos_only = True
+        pyi_code = pyi_code.removesuffix(", ") + ")"
+        if sig.return_annotation is not inspect.Parameter.empty:
+            pyi_code += " -> " + self._generate_type_alias_pyi(sig.return_annotation)
+        pyi_code += ":"
+        if obj.__doc__:
+            pyi_doc = '"""' + obj.__doc__ + '"""'
+        else:
+            pyi_code += " ..."
+
+        return pyi_code, pyi_doc
+
+    def _generate_class_pyi(self, obj, name: str) -> str:
+        """
+        Generates pyi for classes
+        Automatically skips private fields except of popular dunders
+        (as analysators need them to be more accurate)
+        """
+        pyi_code = "class " + name + ":\n"
+        if obj.__doc__:
+            pyi_code += self._python_tab + '"""' + obj.__doc__ + '"""\n'
+        for property_name, property in obj.__dict__.items():
+            if property_name in (
+                "__init__", "__call__", "__add__", "__sub__", "__mul__", "__truediv__",
+                "__floordiv__", "__mod__", "__pow__", "__matmul__", "__radd__", "__rsub__",
+                "__rmul__", "__rtruediv__", "__rfloordiv__", "__rmod__", "__rpow__",
+                "__rmatmul__", "__iadd__", "__isub__", "__imul__", "__itruediv__",
+                "__ifloordiv__", "__imod__", "__ipow__", "__imatmul__", "__neg__",
+                "__pos__", "__invert__", "__abs__", "__round__", "__floor__", "__ceil__",
+                "__trunc__", "__int__", "__float__", "__complex__", "__eq__", "__ne__",
+                "__lt__", "__le__", "__gt__", "__ge__", "__and__", "__or__", "__xor__",
+                "__lshift__", "__rshift__", "__rand__", "__ror__", "__rxor__",
+                "__rlshift__", "__rrshift__", "__iand__", "__ior__", "__ixor__",
+                "__ilshift__", "__irshift__", "__getitem__", "__setitem__", "__delitem__",
+                "__iter__", "__next__", "__len__", "__contains__", "__getattribute__",
+                "__getattr__", "__setattr__", "__delattr__", "__enter__", "__exit__",
+                "__str__", "__repr__", "__format__", "__bytes__", "__hash__", "__bool__",
+                "__getstate__", "__setstate__", "__copy__", "__deepcopy__", "__class__",
+                "__subclasscheck__", "__instancecheck__", "__index__", "__dir__",
+                "__sizeof__", "__getnewargs__"
+            ) or not property_name.startswith("_"):
+                if isinstance(property, classmethod):
+                    pyi_code += self._python_tab + "@classmethod\n"
+                    property = property.__func__
+                if isinstance(property, staticmethod):
+                    pyi_code += self._python_tab + "@staticmethod\n"
+                fn_code, fn_doc = self._generate_function_pyi(property, property_name)
+                pyi_code += self._python_tab + fn_code + "\n"
+                if fn_doc:
+                    pyi_code += self._python_tab*2 + fn_doc + "\n"
+                pyi_code += "\n"
+        return pyi_code
+
+    def _export(self, obj, custom_name: str | None = None, _custom_as_name: bool = False) -> str:
+        name = custom_name if custom_name else obj.__name__
+        self._names[custom_name if _custom_as_name else obj.__name__] = name
+        setattr(self._module, name, obj)
+        return name
+
+    def export(self, what: WhatExportType, obj, custom_name: str | None = None):
+        """
+        Exports `what`
+        Raises PyiGenerationError if failed to generate .pyi interface
+        """
+        if what in ("type", "variable") and not custom_name:
+            raise PyiGenerationError("custom_name must be specified when exporting type or variable")
+        name = self._export(obj, custom_name, what in ("type", "variable"))
+        # pyi generation
+        if what == "function":
+            fn_code, fn_doc = self._generate_function_pyi(obj, name)
+            self._pyi_code += fn_code + "\n"
+            if fn_doc:
+                self._pyi_code += fn_doc + "\n"
+        elif what == "class":
+            self._pyi_code += self._generate_class_pyi(obj, name)
+        elif what == "type":
+            self._pyi_code += name + " = "
+            self._pyi_code += self._generate_type_alias_pyi(obj, True) + "\n"
+        elif what == "variable":
+            self._pyi_code += name + ": " + self._generate_type_alias_pyi(type(obj)) + "\n"
+        else:
+            raise PyiGenerationError(f"unknown what: {what!r}")
+
+    def export_function(self, func, custom_name: str | None = None):
+        """
+        Exports function
+        Raises PyiGenerationError if failed to generate .pyi interface
+        """
+        self.export("function", func, custom_name)
+
+    def export_class(self, cls, custom_name: str | None = None):
+        """
+        Exports class
+        Raises PyiGenerationError if failed to generate .pyi interface
+        """
+        self.export("class", cls, custom_name)
+
+    def export_type(self, _type, custom_name: str):
+        """
+        Exports type
+        Raises PyiGenerationError if failed to generate .pyi interface
+        """
+        self.export("type", _type, custom_name)
+
+    def export_variable(self, var, custom_name: str):
+        """
+        Exports variable
+        Raises PyiGenerationError if failed to generate .pyi interface
+        """
+        self.export("variable", var, custom_name)
+
+    def pyi(self) -> str:
+        """Returns generated .pyi code"""
+        return self._pyi_code
+
+    def load(self):
+        """Loads new module to the python system modules"""
+        sys.modules[self._module.__name__] = self._module
+
+# ~~~ making module ~~~
+i_plugins = RuntimeModulePyi(
+    "imitator_plugins",
+"""
+convenient plugins API for imitator
+~~~ generated by imitator ~~~
+""",
+    "from typing import Any, Literal" # manual intervention
+)
+
+# export types
+i_plugins.export_type(StateType, "StateType")
+i_plugins.manual_export(HookAction, "HookAction")
+i_plugins.manual_insert(
+    """
+HookAction = Literal[
+    "before", "instead", "after", "init", "on_end",
+    "on_full_end", "on_start", "on_interrupt_occur"
+]
+    """
+)
+
+# export classes
+i_plugins.export_class(TermIO)
+i_plugins.export_class(_Next, "NextType")
+
+# export methods
+i_plugins.export_function(add_hook)
+i_plugins.export_function(hook)
+i_plugins.export_function(add_metadata)
+i_plugins.export_function(safe_open)
+i_plugins.export_function(load_hook_from_file)
+i_plugins.export_function(jput)
+i_plugins.export_function(jprint)
+i_plugins.export_function(set_non_blocking_io)
+i_plugins.export_function(set_blocking_io)
 
 # exporting module
-sys.modules["imitator_plugins"] = imitator_plugins
+i_plugins.load()
 
 # ~~~ program logic ~~~
 import time # for printer mode
@@ -325,8 +550,21 @@ def main():
         help="wait specified seconds before start",
         default=0
     )
+    argparser.add_argument(
+        "--generate-dev-pyi",
+        action="store_true",
+        help="generate imitator_plugins.pyi file for development and exit"
+    )
 
     args = argparser.parse_args()
+
+    if args.generate_dev_pyi:
+        try:
+            with open("imitator_plugins.pyi", "w", encoding="utf-8") as file:
+                file.write(i_plugins.pyi())
+                exit(0)
+        except (OSError, PermissionError) as e:
+            fatal(f"cannot write imitator_plugins.pyi due to error: {e}")
 
     loaded_i = 0
 

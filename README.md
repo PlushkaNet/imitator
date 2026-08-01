@@ -108,7 +108,8 @@ python3 imitator.py -f example.txt -i fancy_print.py -m printer
 `python3 imitator.py -h` output:
 
 ```
-usage: imitator [-h] [-f FILE] [-m {typer,printer,interactive}] [-i INCLUDE] [-d DELAY] [-l] [-v] [-w WAIT_BEFORE_START]
+usage: imitator [-h] [-f FILE] [-m {typer,printer,interactive}] [-i INCLUDE] [-d DELAY] [-l] [-v]
+                [-w WAIT_BEFORE_START] [--generate-dev-pyi]
 
 options:
   -h, --help            show this help message and exit
@@ -122,19 +123,20 @@ options:
   -v, --verbose         make output verbose
   -w, --wait-before-start WAIT_BEFORE_START
                         wait specified seconds before start
+  --generate-dev-pyi    generate imitator_plugins.pyi file for development and exit
 ```
 
 ---
 
 ## 🛠️ Writing Plugins
 
-> ! Plugins working only in `printer` mode right now
+> ! Plugins working only in `printer` and `interactive` mode right now
 
 Plugins are written as Python files that define hooks using functions decorated with `@hook("action_name")`.
 
 ### Imitator python API file
 
-Copy `imitator_plugins.pyi` to your workspace to get language server support (this is not necessary for writing plugins, but highly recommended)
+Copy `imitator_plugins.pyi` to your workspace or type `python3 imitator.py --generate-dev-pyi` to get language server support (this is not necessary for writing plugins, but highly recommended)
 
 ### Hook Actions
 
@@ -159,6 +161,8 @@ Copy `imitator_plugins.pyi` to your workspace to get language server support (th
 | `load_hook_from_file` | Load dependency hooks from file |
 | `add_metadata` | Add hook metadata |
 | `add_hook` | Function to register a hook. `hook` uses this internally |
+| `set_blocking_io` | Switch io mode to blocking (TermIO.getch will be blocking) |
+| `set_non_blocking_io` | Switch io mode to non blocking (TermIO.getch will be non-blocking) |
 
 ---
 
