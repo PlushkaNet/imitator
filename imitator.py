@@ -78,6 +78,7 @@ except ImportError:
 io = TermIO
 
 def jput(s: str):
+    """designed to write one symbol to stdout"""
     if s == "\n":
         io.puts("\n\r")
     else:
@@ -85,6 +86,7 @@ def jput(s: str):
     io.flush()
 
 def jprint(s: str):
+    """designed to write text strings to stdout"""
     io.puts(s.replace("\n", "\n\r"))
     io.flush()
 
@@ -137,12 +139,14 @@ HookAction = typing.Literal[
 StateType = dict[str, typing.Any]
 
 def add_hook(action: HookAction, hook):
+    """Subscribes `hook` on `action` event"""
     if action in memory["hooks"]:
         memory["hooks"][action].append(hook)
     else:
         raise NoSuchAction()
 
 def hook(action: HookAction):
+    """Wraps hook and subscribes on `action` event"""
     def wrapper(func):
         add_hook(action, func)
     return wrapper
@@ -153,6 +157,7 @@ def add_metadata(info: dict[str, str]):
     memory["meta"].append(info)
 
 def load_hook_from_file(path: str):
+    """Loads hook from file located in `path`"""
     code = safe_open(path)
     try:
         namespace = {}
@@ -175,8 +180,7 @@ def execute_action(action: HookAction, state: StateType, /) -> dict:
 
 # ~~~ runtime .pyi generation and module initialization tool ~~~
 import inspect
-from types import ModuleType, NoneType
-from typing import GenericAlias, Literal
+from types import ModuleType, NoneType, UnionType
 
 class PyiGenerationError(Exception):
     """Base class for all pyi generation errors"""
@@ -184,7 +188,7 @@ class PyiGenerationError(Exception):
 class RuntimeModulePyi:
     """Runtime module export with hot pyi generation"""
     PyiExportedFunctionType = tuple[str, str | None] # [declaration, doc]
-    WhatExportType = Literal["function", "class", "type", "variable"]
+    WhatExportType = typing.Literal["function", "class", "type", "variable"]
 
     def __init__(self, name: str, doc: str | None = None, after_doc: str | None = None):
         self._module = ModuleType(name, doc)
@@ -205,7 +209,7 @@ class RuntimeModulePyi:
         pyi_code = ""
         if not _skip_self_check and hasattr(obj, "__name__") and self._names.get(obj.__name__, None):
             pyi_code += self._names[obj.__name__]
-        elif isinstance(obj, GenericAlias):
+        elif isinstance(obj, typing.GenericAlias):
             pyi_code = obj.__origin__.__name__ + "["
             for arg in obj.__args__:
                 # pyrefly: ignore [unsupported-operation]
@@ -217,7 +221,7 @@ class RuntimeModulePyi:
                 pyi_code += "None"
             else:
                 pyi_code += self._names.get(obj.__name__, obj.__name__)
-        elif isinstance(obj, typing.Union):
+        elif isinstance(obj, UnionType):
             for annotation_arg in obj.__args__:
                 pyi_code += self._generate_type_alias_pyi(annotation_arg) + " | "
             pyi_code = pyi_code.removesuffix(" | ")
@@ -324,7 +328,7 @@ class RuntimeModulePyi:
             fn_code, fn_doc = self._generate_function_pyi(obj, name)
             self._pyi_code += fn_code + "\n"
             if fn_doc:
-                self._pyi_code += fn_doc + "\n"
+                self._pyi_code += self._python_tab + fn_doc + "\n"
         elif what == "class":
             self._pyi_code += self._generate_class_pyi(obj, name)
         elif what == "type":
@@ -506,7 +510,7 @@ def main():
         "-f", "--file",
         action="store",
         type=str,
-        help="file to read from"
+        help="file to read text from. required if plugins don't set their own content"
     )
     argparser.add_argument(
         "-m", "--mode",

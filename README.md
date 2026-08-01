@@ -113,7 +113,7 @@ usage: imitator [-h] [-f FILE] [-m {typer,printer,interactive}] [-i INCLUDE] [-d
 
 options:
   -h, --help            show this help message and exit
-  -f, --file FILE       file to read from
+  -f, --file FILE       file to read text from. required if plugins don't set their own content
   -m, --mode {typer,printer,interactive}
                         mode to be executed
   -i, --include INCLUDE
