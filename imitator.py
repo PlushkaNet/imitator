@@ -156,7 +156,7 @@ def load_hook_from_file(path: str):
     code = safe_open(path)
     try:
         namespace = {}
-        exec(code, globals=namespace, locals=namespace)
+        exec(code, namespace, namespace)
     except Exception as e:
         fatal(f"error was raised while loading hook {path!r}:\n{e}")
 
