@@ -232,6 +232,8 @@ class RuntimeModulePyi:
             for annotation_arg in obj.__args__:
                 pyi_code += self._generate_type_alias_pyi(annotation_arg) + " | "
             pyi_code = pyi_code.removesuffix(" | ")
+        elif isinstance(obj, NoneType):
+            pyi_code += "None"
         else:
             raise PyiGenerationError(f"cannot generate .pyi interface for type: {obj!r}")
 
