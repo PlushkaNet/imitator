@@ -1,3 +1,7 @@
+![python-versions-supported](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue)
+![license](https://img.shields.io/badge/license-ISC-green)
+![dependencies](https://img.shields.io/badge/no%20dependencies%20required-yellow)
+
 ## 📋 Overview
 
 `Imitator` can be used to:
