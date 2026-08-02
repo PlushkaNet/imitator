@@ -30,7 +30,7 @@ It supports both Windows and Unix-like systems and handles keyboard interrupts g
 
 ## 🚀 Installation
 
-No installation required — just copy and run the script directly using Python 3.6+:
+No installation required — just copy and run the script directly using Python 3.11+:
 
 ```bash
 python3 imitator.py --help
