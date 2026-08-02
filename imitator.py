@@ -469,6 +469,7 @@ def printer(state: dict):
             if state.get("stop", False):
                 break
             state["content"] = content # restore from immutable
+            jput("\n") # to separate loops and avoid content overlay
             finish = state["printer_func"](state)
     else:
         state["printer_func"](state)
