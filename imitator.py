@@ -4,11 +4,32 @@ import sys
 
 CtrlC = "\x03"
 
-def copy_doc(func):
-    def wrapper(wrappable):
-        wrappable.__doc__ = func.__doc__
-        return wrappable
-    return wrapper
+def duowrapper(func):
+    """Helper wrapper to push arg and end function to another wrapper"""
+    def outer_wrapper(arg):
+        def inner_wrapper(endfn):
+            return func(arg, endfn)
+        return inner_wrapper
+    return outer_wrapper
+
+@duowrapper
+def copy_doc(copy_from, copy_to):
+    """Copies function docstring to another function"""
+    copy_to.__doc__ = copy_from.__doc__
+    return copy_to
+
+@duowrapper
+def copy_sig(copy_from, copy_to):
+    """Copies function signature to another function"""
+    copy_to.__annotations__ = copy_from.__annotations__
+    return copy_to
+
+@duowrapper
+def copy_interface(copy_from, copy_to):
+    """Copies function interface (docstring, signatures) to another function"""
+    copy_to.__doc__ = copy_from.__doc__
+    copy_to.__annotations__ = copy_from.__annotations__
+    return copy_to
 
 class TermIO:
     @staticmethod
@@ -31,32 +52,41 @@ class TermIO:
         sys.stdout.flush()
 
 # ~~~ method API signatures ~~~
-def chkkeys():
-    """Raises KeyboardInterrupt if Ctrl+C pressed on Linux"""
-
-def set_non_blocking_io():
+def set_non_blocking_io() -> None:
     """
     Sets IO to non-blocking mode
     This means that methods such as `TermIO.getch()`
     will not block the terminal IO
 
-    This is Unix-only method, on Windows getch is always blocking
+    Works both on Windows and Unix
     """
 
-def set_blocking_io():
+def set_blocking_io() -> None:
     """
     Sets IO to blocking mode
     This means that methods such as `TermIO.getch()`
     will block the terminal IO
 
-    This is Unix-only method, on Windows getch is always blocking
+    Works both on Windows and Unix
     """
 
 # ~~~ platform specific settings ~~~
 try:
     import msvcrt
 
-    TermIO.getch = copy_doc(TermIO.getch)(lambda: msvcrt.getwch())
+    io_not_blocked = False
+    _raw_wgetch = msvcrt.getwch
+
+    @copy_doc(TermIO.getch)
+    def wgetch() -> str | None:
+        global io_not_blocked
+        if io_not_blocked:
+            if msvcrt.kbhit():
+                return _raw_wgetch()
+        else:
+            return _raw_wgetch()
+
+    TermIO.getch = wgetch
 
     class RawTerminalSession:
         def __enter__(self):
@@ -65,20 +95,15 @@ try:
         def __exit__(self, *_):
             pass
 
-    @copy_doc(set_non_blocking_io)
+    @copy_interface(set_non_blocking_io)
     def set_non_blocking_io():
-        pass
+        global io_not_blocked
+        io_not_blocked = True
 
-    @copy_doc(set_blocking_io)
+    @copy_interface(set_blocking_io)
     def set_blocking_io():
-        pass
-
-    def nonblockingio(func):
-        return func
-
-    @copy_doc(chkkeys)
-    def chkkeys():
-        pass
+        global io_not_blocked
+        io_not_blocked = False
 except ImportError:
     import termios
     import tty
@@ -94,27 +119,34 @@ except ImportError:
         def __exit__(self, *_):
             termios.tcsetattr(self._fd, termios.TCSADRAIN, self._attr)
 
-    @copy_doc(set_non_blocking_io)
+    @copy_interface(set_non_blocking_io)
     def set_non_blocking_io():
         os.set_blocking(sys.stdin.fileno(), False)
 
-    @copy_doc(set_blocking_io)
+    @copy_interface(set_blocking_io)
     def set_blocking_io():
         os.set_blocking(sys.stdin.fileno(), True)
 
-    def nonblockingio(func):
-        def wrapper(*args, **kwargs):
-            set_non_blocking_io()
-            try:
-                return func(*args, **kwargs)
-            finally:
-                set_blocking_io()
-        return wrapper
+def check_ctrl_c() -> None:
+    """
+    Raises KeyboardInterrupt if Ctrl+C was pressed
+    Works both on Linux and Windows (in non blocking mode)
+    """
+    if TermIO.getch() == CtrlC:
+        raise KeyboardInterrupt()
 
-    @copy_doc(chkkeys)
-    def chkkeys():
-        if TermIO.getch() == CtrlC:
-            raise KeyboardInterrupt()
+def nonblockingio(func):
+    """
+    Convenient wrapper for functions
+    Automatically manages `set_blocking_io()` and `set_non_blocking_io()` on exit
+    """
+    def wrapper(*args, **kwargs):
+        set_non_blocking_io()
+        try:
+            return func(*args, **kwargs)
+        finally:
+            set_blocking_io()
+    return wrapper
 
 # ~~~ internal IO methods
 io = TermIO
@@ -184,7 +216,7 @@ HookAction = typing.Literal[
 
 StateType = dict[str, typing.Any]
 
-def add_hook(action: HookAction, hook):
+def add_hook(action: HookAction, hook, /):
     """Subscribes `hook` on `action` event"""
     if action in memory["hooks"]:
         memory["hooks"][action].append(hook)
@@ -291,6 +323,14 @@ class RuntimeModulePyi:
             pyi_code += "Any" # fallback
 
         return pyi_code
+    
+    def _generate_doc(self, doc: str, /) -> str:
+        """mutates `doc`"""
+        doc = doc.replace("\n", "\n" + self._python_tab)
+        if "\n" in doc:
+            return '"""\n' + self._python_tab + doc + "\n" + self._python_tab + '"""'
+        else:
+            return '"""' + doc + '"""'
 
     def _generate_function_pyi(self, obj, name: str) -> PyiExportedFunctionType:
         sig = inspect.signature(obj)
@@ -318,12 +358,14 @@ class RuntimeModulePyi:
             pyi_code += ", "
             if parameter.kind == parameter.POSITIONAL_ONLY:
                 _pos_only = True
+        if _pos_only: # if all arguments are positional-only
+            pyi_code += "/"
         pyi_code = pyi_code.removesuffix(", ") + ")"
         if type_hints.get("return"):
             pyi_code += " -> " + self._generate_type_alias_pyi(type_hints["return"])
         pyi_code += ":"
         if obj.__doc__:
-            pyi_doc = '"""' + obj.__doc__.replace("\n", f"\n{self._python_tab}") + '"""'
+            pyi_doc = self._generate_doc(inspect.getdoc(obj))
         else:
             pyi_code += " ..."
 
@@ -337,7 +379,7 @@ class RuntimeModulePyi:
         """
         pyi_code = "class " + name + ":\n"
         if obj.__doc__:
-            pyi_code += self._python_tab + '"""' + obj.__doc__ + '"""\n'
+            pyi_code += self._generate_doc(inspect.getdoc(obj))
         for property_name, property in obj.__dict__.items():
             if property_name in (
                 "__init__", "__call__", "__add__", "__sub__", "__mul__", "__truediv__",
@@ -467,7 +509,11 @@ i_plugins.export_function(jput)
 i_plugins.export_function(jprint)
 i_plugins.export_function(set_non_blocking_io)
 i_plugins.export_function(set_blocking_io)
-i_plugins.export_function(chkkeys, "check_ctrl_c")
+i_plugins.export_function(check_ctrl_c)
+i_plugins.export_function(nonblockingio)
+
+# export variables
+i_plugins.export_variable(CtrlC, "CtrlC")
 
 # exporting module
 i_plugins.load()
@@ -481,6 +527,7 @@ def simulate(content: str):
     mutates `content`
     unsupports hooking
     """
+    set_blocking_io() # to prevent unexpected behaviour
     while True:
         if io.getch() == CtrlC:
             break
@@ -488,7 +535,6 @@ def simulate(content: str):
             jput(content[0])
             content = content[1:]
 
-@nonblockingio
 def printer_body(state: dict) -> bool:
     """
     mutates `state`
@@ -500,7 +546,7 @@ def printer_body(state: dict) -> bool:
             state = execute_action("before", state)
             ##########################
 
-            chkkeys() # linux only
+            check_ctrl_c() # will raise KeyboardInterrupt on Ctrl+C
 
             #########instead##########
             state = execute_action("instead", state)
@@ -516,6 +562,7 @@ def printer_body(state: dict) -> bool:
         return True
     return False
 
+@nonblockingio
 def printer(state: dict):
     """mutates `state`"""
     state["printer_func"] = printer_body
@@ -537,9 +584,10 @@ def printer(state: dict):
 @nonblockingio # to avoid undocumented/unexpected behaviour in plugins
 def interactive(state: dict): # fully plugin-controlled
     """mutates `state`"""
+    state["exit"] = False
     try:
         state = execute_action("init", state)
-        while state["content"]:
+        while not state["exit"]: # plugins control exit
             state = execute_action("before", state)
             state = execute_action("instead", state)
             state = execute_action("after", state)
@@ -549,17 +597,25 @@ def interactive(state: dict): # fully plugin-controlled
     execute_action("on_full_end", state)
 
 # ~~~ default behaviour ~~~
+@hook("before")
+def _default_before(_next: _Next, state: StateType):
+    if state["mode"] == "interactive":
+        check_ctrl_c()
+    return _next(state)
+
 @hook("instead")
-def _default_instead(_next: _Next, state: dict):
+def _default_instead(_next: _Next, state: StateType):
     state["_val"] = state["content"][0]
     jput(state["_val"])
     state["content"] = state["content"][1:]
     return _next(state)
 
 @hook("after")
-def _default_after(_next: _Next, state: dict):
+def _default_after(_next: _Next, state: StateType):
     if state["mode"] == "interactive":
-        time.sleep(0.01)
+        if len(state["content"]) == 0:
+            state["exit"] = True
+        time.sleep(state["delay"])
     return _next(state)
 
 # ~~~ main ~~~

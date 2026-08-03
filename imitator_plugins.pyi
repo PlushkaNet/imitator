@@ -39,11 +39,11 @@ class TermIO:
         """Flushes STDOUT buffer to terminal"""
 
 class NextType:
-    def __init__(self, frame_stack: list): ...
+    def __init__(self, frame_stack: list, /): ...
 
-    def __call__(self, state: StateType): ...
+    def __call__(self, state: StateType, /): ...
 
-def add_hook(action: HookAction, hook):
+def add_hook(action: HookAction, hook, /):
     """Subscribes `hook` on `action` event"""
 
 def hook(action: HookAction):
@@ -64,24 +64,35 @@ def jput(s: str):
 def jprint(s: str):
     """Designed to write text strings to stdout"""
 
-def set_non_blocking_io():
+def set_non_blocking_io() -> None:
     """
     Sets IO to non-blocking mode
     This means that methods such as `TermIO.getch()`
     will not block the terminal IO
     
-    This is Unix-only method, on Windows getch is always blocking
+    Works both on Windows and Unix
     """
 
-def set_blocking_io():
+def set_blocking_io() -> None:
     """
     Sets IO to blocking mode
     This means that methods such as `TermIO.getch()`
     will block the terminal IO
     
-    This is Unix-only method, on Windows getch is always blocking
+    Works both on Windows and Unix
     """
 
-def check_ctrl_c():
-    """Raises KeyboardInterrupt if Ctrl+C pressed on Linux"""
+def check_ctrl_c() -> None:
+    """
+    Raises KeyboardInterrupt if Ctrl+C was pressed
+    Works both on Linux and Windows (in non blocking mode)
+    """
+
+def nonblockingio(func):
+    """
+    Convenient wrapper for functions
+    Automatically manages `set_blocking_io()` and `set_non_blocking_io()` on exit
+    """
+
+CtrlC: str
 
