@@ -409,6 +409,7 @@ i_plugins.export_function(jput)
 i_plugins.export_function(jprint)
 i_plugins.export_function(set_non_blocking_io)
 i_plugins.export_function(set_blocking_io)
+i_plugins.export_function(chkkeys, "check_ctrl_c")
 
 # exporting module
 i_plugins.load()
@@ -477,6 +478,7 @@ def printer(state: dict):
 
 def interactive(state: dict):
     """mutates `state`"""
+    set_non_blocking_io() # to avoid undocumented/unexpected behaviour in plugins
     try:
         state = execute_action("init", state)
         while state["content"]:
@@ -601,7 +603,8 @@ def main():
     state = {
         "loop": args.loop,
         "delay": args.delay,
-        "mode": args.mode
+        "mode": args.mode,
+        "content_preview": args.file
     }
     state = execute_action("on_start", state)
     if not state.get("prevent_load", False):
