@@ -64,7 +64,7 @@ def set_blocking_io():
 try:
     import msvcrt
 
-    TermIO.getch = copy_doc(TermIO.getch)(msvcrt.getwch)
+    TermIO.getch = copy_doc(TermIO.getch)(lambda: msvcrt.getwch())
 
     class RawTerminalSession:
         def __enter__(self):

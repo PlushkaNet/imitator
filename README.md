@@ -161,8 +161,8 @@ Copy `imitator_plugins.pyi` to your workspace or type `python3 imitator.py --gen
 | `hook` | Decorator that register a hook |
 | `jput` | Puts character after a previous one |
 | `jprint` | Prints string after previous character |
-| `safe_open` | Safely open external files from filesystem using Imitator API |
-| `load_hook_from_file` | Load dependency hooks from file |
+| `open_else_fatal` | Open exernal files with fatal message on fail |
+| `load_hooks_from_file` | Load dependency hooks from file |
 | `add_hook` | Function to register a hook. `hook` uses this internally |
 | `set_blocking_io` | Switch io mode to blocking (TermIO.getch will be blocking) |
 | `set_non_blocking_io` | Switch io mode to non blocking (TermIO.getch will be non-blocking) |
@@ -173,10 +173,10 @@ Copy `imitator_plugins.pyi` to your workspace or type `python3 imitator.py --gen
 
 > file `fancy_print.py`:
 ```python
-from imitator_plugins import hook, jput
+from imitator_plugins import hook, jput, NextType, StateType
 
 @hook("instead")
-def fancy_instead(_next, state):
+def fancy_instead(_next: NextType, state: StateType):
     char = state["content"][0] # get first symbol from text
     if char == " ":
         char = "*"
@@ -202,10 +202,10 @@ This will print uppercase letters and spaces as stars.
 
 > file `stop_on_space.py`:
 ```python
-from imitator_plugins import hook
+from imitator_plugins import hook, NextType, StateType
 
 @hook("instead")
-def stop_on_space(_next, state):
+def stop_on_space(_next: NextType, state: StateType):
     char = state["content"][0] # get first symbol from text
     if char == " ":
         raise KeyboardInterrupt()
@@ -235,15 +235,15 @@ Here's a full plugin that modifies content and adds logging:
 
 > file `advanced_hook.py`:
 ```python
-from imitator_plugins import hook, jprint, jput
+from imitator_plugins import hook, jprint, jput, NextType, StateType
 
 @hook("init")
-def log_start(_next, state):
+def log_start(_next: NextType, state: StateType):
     jprint("Starting to print...\n\n") # put the whole string
     return _next(state)
 
 @hook("instead")
-def replace_and_log(_next, state):
+def replace_and_log(_next: NextType, state: StateType):
     char = state["content"][0]
     if char == "a":
         char = "@"
@@ -251,13 +251,11 @@ def replace_and_log(_next, state):
         char = "3"
     jput(char) # put single character
     state["content"] = state["content"][1:]
-    return state
+    return state # prevent executing default behaviour
 
 @hook("on_full_end")
-def log_finished(_next, state):
-    # jprint/jput doesn't work here, because
-    # on_full_end executes after exit raw terminal mode
-    print("\nFinished printing!")
+def log_finished(_next: NextType, state: StateType):
+    jprint("\n\nFinished printing!\n")
     return _next(state)
 ```
 
@@ -271,18 +269,18 @@ python3 imitator.py -f example.txt -i advanced_hook.py -m printer
 
 > file `multiple_instead.py`:
 ```python
-from imitator_plugins import hook, jput
+from imitator_plugins import hook, jput, NextType, StateType
 
 # this plugin will be in the middle of chain
 @hook("instead")
-def instead1(_next, state):
+def instead1(_next: NextType, state: StateType):
     jput("1")
     return state # exit after this plugin, to avoid unexpected behaviour
 
 # last loaded plugin
 # will be first in plugin chain
 @hook("instead")
-def instead2(_next, state):
+def instead2(_next: NextType, state: StateType):
     # here we need to truncate content to avoid loop
     state["_val"] = state["content"][0]
     state["content"] = state["content"][1:]

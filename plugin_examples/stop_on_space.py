@@ -1,7 +1,7 @@
-from imitator_plugins import hook
+from imitator_plugins import hook, NextType, StateType
 
 @hook("instead")
-def stop_on_space(_next, state):
+def stop_on_space(_next: NextType, state: StateType):
     char = state["content"][0] # get first symbol from text
     if char == " ":
         raise KeyboardInterrupt()
