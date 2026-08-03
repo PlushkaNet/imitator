@@ -155,7 +155,7 @@ Copy `imitator_plugins.pyi` to your workspace or type `python3 imitator.py --gen
 | `on_full_end` | Called when all loops are finished |
 | `on_start` | Called before anything starts |
 
-### Hook API (see `imitator_plugins.py` for more details)
+### Hook API (see `imitator_plugins.pyi` for more details)
 | Method | Description |
 |--------|-------------|
 | `hook` | Decorator that register a hook |
@@ -163,7 +163,6 @@ Copy `imitator_plugins.pyi` to your workspace or type `python3 imitator.py --gen
 | `jprint` | Prints string after previous character |
 | `safe_open` | Safely open external files from filesystem using Imitator API |
 | `load_hook_from_file` | Load dependency hooks from file |
-| `add_metadata` | Add hook metadata |
 | `add_hook` | Function to register a hook. `hook` uses this internally |
 | `set_blocking_io` | Switch io mode to blocking (TermIO.getch will be blocking) |
 | `set_non_blocking_io` | Switch io mode to non blocking (TermIO.getch will be non-blocking) |

@@ -1,26 +1,70 @@
 # !/usr/bin/python3
-# ~~~ platform specific settings ~~~
+from __future__ import annotations
+
 import sys
 
 CtrlC = "\x03"
 
+def align_doc(func):
+    func.__doc__ = func.__doc__.replace("\n", "\n\t") # if \t == " "*4
+    return func
+
+def copy_doc(func):
+    def wrapper(wrappable):
+        wrappable.__doc__ = func.__doc__
+        return wrappable
+    return wrapper
+
 class TermIO:
     @staticmethod
     def getch():
+        """Get one char from STDIN"""
         return sys.stdin.read(1)
 
     @staticmethod
+    @align_doc
     def puts(s: str):
+        """
+        Put multiple chars to STDOUT
+        It's recommended to use jprint or jput instead of using
+        this internal method
+        """
         sys.stdout.write(s)
     
     @staticmethod
     def flush():
+        """Flushes STDOUT buffer to terminal"""
         sys.stdout.flush()
 
+# ~~~ method API signatures ~~~
+def chkkeys():
+    """Raises KeyboardInterrupt if Ctrl+C pressed on Linux"""
+
+@align_doc
+def set_non_blocking_io():
+    """
+    Sets IO to non-blocking mode
+    This means that methods such as `TermIO.getch()`
+    will not block the terminal IO
+
+    This is Unix-only method, on Windows getch is always blocking
+    """
+
+@align_doc
+def set_blocking_io():
+    """
+    Sets IO to blocking mode
+    This means that methods such as `TermIO.getch()`
+    will block the terminal IO
+
+    This is Unix-only method, on Windows getch is always blocking
+    """
+
+# ~~~ platform specific settings ~~~
 try:
     import msvcrt
 
-    TermIO.getch = msvcrt.getwch
+    TermIO.getch = copy_doc(TermIO.getch)(msvcrt.getwch)
 
     class RawTerminalSession:
         def __enter__(self):
@@ -28,16 +72,19 @@ try:
 
         def __exit__(self, *_):
             pass
-    
+
+    @copy_doc(set_non_blocking_io)
     def set_non_blocking_io():
         pass
-    
+
+    @copy_doc(set_blocking_io)
     def set_blocking_io():
         pass
 
     def nonblockingio(func):
         return func
 
+    @copy_doc(chkkeys)
     def chkkeys():
         pass
 except ImportError:
@@ -51,16 +98,18 @@ except ImportError:
             self._fd = sys.stdin.fileno()
             self._attr = termios.tcgetattr(self._fd)
             tty.setraw(self._fd)
-        
+
         def __exit__(self, *_):
             termios.tcsetattr(self._fd, termios.TCSADRAIN, self._attr)
-    
+
+    @copy_doc(set_non_blocking_io)
     def set_non_blocking_io():
         os.set_blocking(sys.stdin.fileno(), False)
-    
+
+    @copy_doc(set_blocking_io)
     def set_blocking_io():
         os.set_blocking(sys.stdin.fileno(), True)
-    
+
     def nonblockingio(func):
         def wrapper(*args, **kwargs):
             set_non_blocking_io()
@@ -69,7 +118,8 @@ except ImportError:
             finally:
                 set_blocking_io()
         return wrapper
-    
+
+    @copy_doc(chkkeys)
     def chkkeys():
         if TermIO.getch() == CtrlC:
             raise KeyboardInterrupt()
@@ -78,7 +128,7 @@ except ImportError:
 io = TermIO
 
 def jput(s: str):
-    """designed to write one symbol to stdout"""
+    """Designed to write one symbol to stdout"""
     if s == "\n":
         io.puts("\n\r")
     else:
@@ -86,7 +136,7 @@ def jput(s: str):
     io.flush()
 
 def jprint(s: str):
-    """designed to write text strings to stdout"""
+    """Designed to write text strings to stdout"""
     io.puts(s.replace("\n", "\n\r"))
     io.flush()
 
@@ -95,7 +145,12 @@ def fatal(msg: str):
     print(f"fatal: {msg}")
     exit(1)
 
-def safe_open(path: str) -> str:
+@align_doc
+def open_else_fatal(path: str) -> str:
+    """
+    Opens file
+    If error occured, stops program with fatal message
+    """
     try:
         with open(path, "r", encoding="utf-8") as file:
             return file.read()
@@ -108,7 +163,7 @@ def safe_open(path: str) -> str:
 
 # ~~~ hooks system ~~~
 memory = {
-    "meta": [], # for hook metainfo's
+    "meta": [], # for plugins metainfo
     "hooks": {
         "before": [],
         "instead": [],
@@ -152,15 +207,17 @@ def hook(action: HookAction):
     return wrapper
 
 def add_metadata(info: dict[str, str]):
+    # adds metadata to plugin
     if not isinstance(info, dict):
         raise UnknownMetaInfoDatatype()
     memory["meta"].append(info)
 
-def load_hook_from_file(path: str):
-    """Loads hook from file located in `path`"""
-    code = safe_open(path)
+def load_hooks_from_file(path: str):
+    """Loads hooks from file located in `path`"""
+    code = open_else_fatal(path)
     try:
         namespace = {}
+        memory["meta"].append({"path": path})
         exec(code, namespace, namespace)
     except Exception as e:
         fatal(f"error was raised while loading hook {path!r}:\n{e}")
@@ -199,7 +256,7 @@ class RuntimeModulePyi:
         self._custom_forms = {}
         self._pyi_code = ('"""' + doc + '"""\n') if doc else ""
         self._pyi_code += "from typing import *\n\n" # to avoid late importing need
-        self._python_tab = " "*4
+        self._python_tab = "\t"
 
     def manual_insert(self, text: str):
         """Function for manually insert text into file"""
@@ -210,11 +267,16 @@ class RuntimeModulePyi:
         self._export(obj, custom_name)
 
     def _generate_type_alias_pyi(self, obj, _skip_self_check: bool = False) -> str:
+        """
+        Returns type alias
+        If cannot recognize type alias, returns `Any` instead
+        """
         pyi_code = ""
         # note: this can cause unexpected automatical type assigment
         if not _skip_self_check and obj in self._custom_forms:
             pyi_code += self._custom_forms[obj]
         elif typing.get_origin(obj) is typing.Literal:
+            # covers only string literals
             pyi_code += "Literal[\n" + self._python_tab + f",\n{self._python_tab}".join([f'"{i}"' for i in obj.__args__]) + "\n]"
         elif isinstance(obj, typing.GenericAlias):
             pyi_code = obj.__origin__.__name__ + "["
@@ -223,7 +285,7 @@ class RuntimeModulePyi:
                 pyi_code += self._names.get(arg.__name__, self._generate_type_alias_pyi(arg))
                 pyi_code += ", "
             pyi_code = pyi_code.removesuffix(", ") + "]"
-        elif isinstance(obj, type):
+        elif isinstance(obj, type): # no __future__ annotations feature
             if obj == NoneType:
                 pyi_code += "None"
             else:
@@ -235,7 +297,7 @@ class RuntimeModulePyi:
         elif isinstance(obj, NoneType):
             pyi_code += "None"
         else:
-            raise PyiGenerationError(f"cannot generate .pyi interface for type: {obj!r}")
+            pyi_code += "Any" # fallback
 
         return pyi_code
 
@@ -245,6 +307,7 @@ class RuntimeModulePyi:
         pyi_doc = None
         _pos_only = False
         _kw_only = False
+        type_hints = typing.get_type_hints(obj) # python 3.11+ lazy loading annotations feature
         for varname, parameter in sig.parameters.items():
             if parameter.kind == parameter.VAR_KEYWORD:
                 pyi_code += "**"
@@ -258,15 +321,15 @@ class RuntimeModulePyi:
                 _kw_only = True
             pyi_code += varname
             if parameter.annotation is not inspect._empty:
-                pyi_code += ": " + self._generate_type_alias_pyi(parameter.annotation)
+                pyi_code += ": " + self._generate_type_alias_pyi(type_hints[parameter.name])
             if parameter.default is not inspect.Parameter.empty:
                 pyi_code += " = ..."
             pyi_code += ", "
             if parameter.kind == parameter.POSITIONAL_ONLY:
                 _pos_only = True
         pyi_code = pyi_code.removesuffix(", ") + ")"
-        if sig.return_annotation is not inspect.Parameter.empty:
-            pyi_code += " -> " + self._generate_type_alias_pyi(sig.return_annotation)
+        if type_hints.get("return"):
+            pyi_code += " -> " + self._generate_type_alias_pyi(type_hints["return"])
         pyi_code += ":"
         if obj.__doc__:
             pyi_doc = '"""' + obj.__doc__ + '"""'
@@ -312,7 +375,7 @@ class RuntimeModulePyi:
                 fn_code, fn_doc = self._generate_function_pyi(property, property_name)
                 pyi_code += self._python_tab + fn_code + "\n"
                 if fn_doc:
-                    pyi_code += self._python_tab*2 + fn_doc + "\n"
+                    pyi_code += self._python_tab*2 + fn_doc.replace("\n", "\n\t") + "\n"
                 pyi_code += "\n"
         return pyi_code
 
@@ -335,7 +398,8 @@ class RuntimeModulePyi:
             fn_code, fn_doc = self._generate_function_pyi(obj, name)
             self._pyi_code += fn_code + "\n"
             if fn_doc:
-                self._pyi_code += self._python_tab + fn_doc + "\n"*2
+                self._pyi_code += self._python_tab + fn_doc + "\n"
+            self._pyi_code += "\n"
         elif what == "class":
             self._pyi_code += self._generate_class_pyi(obj, name)
         elif what == "type":
@@ -386,8 +450,12 @@ class RuntimeModulePyi:
 i_plugins = RuntimeModulePyi(
     "imitator_plugins",
 """
-convenient plugins API for imitator
 ~~~ generated by imitator ~~~
+
+Convenient plugin API for imitator
+
+got by using:
+    python3 imitator.py --generate-dev-pyi
 """
 )
 
@@ -402,9 +470,8 @@ i_plugins.export_class(_Next, "NextType")
 # export methods
 i_plugins.export_function(add_hook)
 i_plugins.export_function(hook)
-i_plugins.export_function(add_metadata)
-i_plugins.export_function(safe_open)
-i_plugins.export_function(load_hook_from_file)
+i_plugins.export_function(open_else_fatal)
+i_plugins.export_function(load_hooks_from_file)
 i_plugins.export_function(jput)
 i_plugins.export_function(jprint)
 i_plugins.export_function(set_non_blocking_io)
@@ -421,7 +488,7 @@ import argparse # for main method
 def simulate(content: str):
     """
     mutates `content`
-    unsupport hooking right now
+    unsupports hooking
     """
     while True:
         if io.getch() == CtrlC:
@@ -476,9 +543,9 @@ def printer(state: dict):
         state["printer_func"](state)
     execute_action("on_full_end", state)
 
-def interactive(state: dict):
+@nonblockingio # to avoid undocumented/unexpected behaviour in plugins
+def interactive(state: dict): # fully plugin-controlled
     """mutates `state`"""
-    set_non_blocking_io() # to avoid undocumented/unexpected behaviour in plugins
     try:
         state = execute_action("init", state)
         while state["content"]:
@@ -582,7 +649,7 @@ def main():
                 for inc in os.listdir(include):
                     process(os.path.join(include, inc))
             else:
-                load_hook_from_file(include)
+                load_hooks_from_file(include)
                 loaded_i += 1
         for include in args.include:
             process(include)
@@ -593,12 +660,17 @@ def main():
         for hooks in memory["hooks"].values():
             hooks_count += len(hooks)
         print(f"{loaded_i} plugins and {hooks_count} hooks loaded in {(end_load_time - start_load_time)*1000:0.4f} ms")
+        for info in memory["meta"]:
+            print(f"Loaded plugin located at: {info['path']!r}")
 
     # get rid of unused variables
     del start_load_time, end_load_time, loaded_i
 
     if args.wait_before_start > 0:
-        time.sleep(args.wait_before_start)
+        try:
+            time.sleep(args.wait_before_start)
+        except KeyboardInterrupt:
+            exit(1)
 
     state = {
         "loop": args.loop,
@@ -606,10 +678,13 @@ def main():
         "mode": args.mode,
         "content_preview": args.file
     }
-    state = execute_action("on_start", state)
+    try:
+        state = execute_action("on_start", state)
+    except KeyboardInterrupt: # if plugin provides input access to user
+        exit(1)
     if not state.get("prevent_load", False):
         if args.file:
-            state["content"] = safe_open(args.file)
+            state["content"] = open_else_fatal(args.file)
         else:
             fatal("no file to load and hooks did not set any prevention flag")
     
