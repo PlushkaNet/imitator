@@ -15,9 +15,10 @@ It supports both Windows and Unix-like systems and handles keyboard interrupts g
 
 ## 🧰 Features
 
-- **Two Modes**:
+- **Three Modes**:
   - `typer`: Simulates real-time typing.
   - `printer`: Prints characters one by one with configurable delay.
+  - `interactive` Advanced interactive mode to be used primarily by plugins.
 
 - **Plugin System**:
   - Hooks into different stages of execution (`before`, `instead`, `after`, etc.)
@@ -25,6 +26,7 @@ It supports both Windows and Unix-like systems and handles keyboard interrupts g
 
 - **Cross-platform Support**:
   - Works on Windows and Linux/macOS.
+  - Supports colors in Windows 10 (build 1511+)/11 terminal
   - Handles raw terminal input properly on each platform.
 
 - **Keyboard Interrupt Handling**:
@@ -134,7 +136,7 @@ options:
 
 ## 🛠️ Writing Plugins
 
-> ! Plugins working only in `printer` and `interactive` mode right now
+> ! Plugins working only in `printer` and `interactive` mode
 
 Plugins are written as Python files that define hooks using functions decorated with `@hook("action_name")`.
 
@@ -155,7 +157,7 @@ Copy `imitator_plugins.pyi` to your workspace or type `python3 imitator.py --gen
 | `on_full_end` | Called when all loops are finished |
 | `on_start` | Called before anything starts |
 
-### Hook API (see `imitator_plugins.pyi` for more details)
+### Hook API (see [imitator_plugins.pyi](imitator_plugins.pyi) for actual information)
 | Method | Description |
 |--------|-------------|
 | `hook` | Decorator that register a hook |

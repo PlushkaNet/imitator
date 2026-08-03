@@ -73,6 +73,11 @@ def set_blocking_io() -> None:
 # ~~~ platform specific settings ~~~
 try:
     import msvcrt
+    import ctypes
+
+    # try to enable ANSI escape sequences on Windows 10 (1511+)/11
+    kernel32 = ctypes.windll.kernel32
+    kernel32.SetConsoleMode(kernel32.GetStdHandle(-11), 7)
 
     io_not_blocked = False
     _raw_wgetch = msvcrt.getwch
