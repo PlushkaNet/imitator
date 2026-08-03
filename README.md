@@ -1,4 +1,4 @@
-![python-versions-supported](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue)
+![python-versions-supported](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue)
 ![license](https://img.shields.io/badge/license-ISC-green)
 ![dependencies](https://img.shields.io/badge/no%20dependencies%20required-yellow)
 
@@ -34,7 +34,7 @@ It supports both Windows and Unix-like systems and handles keyboard interrupts g
 
 ## 🚀 Installation
 
-No installation required — just copy and run the script directly using Python 3.11+:
+No installation required — just copy and run the script directly using Python 3.10+:
 
 ```bash
 python3 imitator.py --help
@@ -298,7 +298,7 @@ python3 imitator.py -f example.txt -i multiple_instead.py -m printer
 
 ## 📝 License
 
-MIT License – see [LICENSE](LICENSE) for details.
+ISC License – see [LICENSE](LICENSE) for details.
 
 ---
 
