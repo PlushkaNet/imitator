@@ -1,13 +1,8 @@
 # !/usr/bin/python3
 from __future__ import annotations
-
 import sys
 
 CtrlC = "\x03"
-
-def align_doc(func):
-    func.__doc__ = func.__doc__.replace("\n", "\n\t") # if \t == " "*4
-    return func
 
 def copy_doc(func):
     def wrapper(wrappable):
@@ -22,7 +17,6 @@ class TermIO:
         return sys.stdin.read(1)
 
     @staticmethod
-    @align_doc
     def puts(s: str):
         """
         Put multiple chars to STDOUT
@@ -40,7 +34,6 @@ class TermIO:
 def chkkeys():
     """Raises KeyboardInterrupt if Ctrl+C pressed on Linux"""
 
-@align_doc
 def set_non_blocking_io():
     """
     Sets IO to non-blocking mode
@@ -50,7 +43,6 @@ def set_non_blocking_io():
     This is Unix-only method, on Windows getch is always blocking
     """
 
-@align_doc
 def set_blocking_io():
     """
     Sets IO to blocking mode
@@ -145,7 +137,6 @@ def fatal(msg: str):
     print(f"fatal: {msg}")
     exit(1)
 
-@align_doc
 def open_else_fatal(path: str) -> str:
     """
     Opens file
@@ -256,7 +247,7 @@ class RuntimeModulePyi:
         self._custom_forms = {}
         self._pyi_code = ('"""' + doc + '"""\n') if doc else ""
         self._pyi_code += "from typing import *\n\n" # to avoid late importing need
-        self._python_tab = "\t"
+        self._python_tab = " "*4
 
     def manual_insert(self, text: str):
         """Function for manually insert text into file"""
@@ -332,7 +323,7 @@ class RuntimeModulePyi:
             pyi_code += " -> " + self._generate_type_alias_pyi(type_hints["return"])
         pyi_code += ":"
         if obj.__doc__:
-            pyi_doc = '"""' + obj.__doc__ + '"""'
+            pyi_doc = '"""' + obj.__doc__.replace("\n", f"\n{self._python_tab}") + '"""'
         else:
             pyi_code += " ..."
 

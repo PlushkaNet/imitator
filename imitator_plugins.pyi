@@ -11,77 +11,77 @@ from typing import *
 StateType = dict[str, Any]
 
 HookAction = Literal[
-	"before",
-	"instead",
-	"after",
-	"init",
-	"on_end",
-	"on_full_end",
-	"on_start",
-	"on_interrupt_occur"
+    "before",
+    "instead",
+    "after",
+    "init",
+    "on_end",
+    "on_full_end",
+    "on_start",
+    "on_interrupt_occur"
 ]
 
 class TermIO:
-	@staticmethod
-	def getch():
-		"""Get one char from STDIN"""
+    @staticmethod
+    def getch():
+        """Get one char from STDIN"""
 
-	@staticmethod
-	def puts(s: str):
-		"""
-		Put multiple chars to STDOUT
-		It's recommended to use jprint or jput instead of using
-		this internal method
-		"""
+    @staticmethod
+    def puts(s: str):
+        """
+	    Put multiple chars to STDOUT
+	    It's recommended to use jprint or jput instead of using
+	    this internal method
+	    """
 
-	@staticmethod
-	def flush():
-		"""Flushes STDOUT buffer to terminal"""
+    @staticmethod
+    def flush():
+        """Flushes STDOUT buffer to terminal"""
 
 class NextType:
-	def __init__(self, frame_stack: list): ...
+    def __init__(self, frame_stack: list): ...
 
-	def __call__(self, state: StateType): ...
+    def __call__(self, state: StateType): ...
 
 def add_hook(action: HookAction, hook):
-	"""Subscribes `hook` on `action` event"""
+    """Subscribes `hook` on `action` event"""
 
 def hook(action: HookAction):
-	"""Wraps hook and subscribes on `action` event"""
+    """Wraps hook and subscribes on `action` event"""
 
 def open_else_fatal(path: str) -> str:
-	"""
-	Opens file
-	If error occured, stops program with fatal message
-	"""
+    """
+    Opens file
+    If error occured, stops program with fatal message
+    """
 
 def load_hooks_from_file(path: str):
-	"""Loads hooks from file located in `path`"""
+    """Loads hooks from file located in `path`"""
 
 def jput(s: str):
-	"""Designed to write one symbol to stdout"""
+    """Designed to write one symbol to stdout"""
 
 def jprint(s: str):
-	"""Designed to write text strings to stdout"""
+    """Designed to write text strings to stdout"""
 
 def set_non_blocking_io():
-	"""
-	Sets IO to non-blocking mode
-	This means that methods such as `TermIO.getch()`
-	will not block the terminal IO
-	
-	This is Unix-only method, on Windows getch is always blocking
-	"""
+    """
+    Sets IO to non-blocking mode
+    This means that methods such as `TermIO.getch()`
+    will not block the terminal IO
+    
+    This is Unix-only method, on Windows getch is always blocking
+    """
 
 def set_blocking_io():
-	"""
-	Sets IO to blocking mode
-	This means that methods such as `TermIO.getch()`
-	will block the terminal IO
-	
-	This is Unix-only method, on Windows getch is always blocking
-	"""
+    """
+    Sets IO to blocking mode
+    This means that methods such as `TermIO.getch()`
+    will block the terminal IO
+    
+    This is Unix-only method, on Windows getch is always blocking
+    """
 
 def check_ctrl_c():
-	"""Raises KeyboardInterrupt if Ctrl+C pressed on Linux"""
+    """Raises KeyboardInterrupt if Ctrl+C pressed on Linux"""
 
