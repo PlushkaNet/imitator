@@ -172,7 +172,7 @@ def jprint(s: str):
 # ~~~ common IO methods ~~~
 def fatal(msg: str):
     print(f"fatal: {msg}")
-    exit(1)
+    sys.exit(1)
 
 def open_else_fatal(path: str) -> str:
     """
@@ -686,7 +686,7 @@ def main():
         try:
             with open("imitator_plugins.pyi", "w", encoding="utf-8") as file:
                 file.write(i_plugins.pyi())
-                exit(0)
+                sys.exit(0)
         except (OSError, PermissionError) as e:
             fatal(f"cannot write imitator_plugins.pyi due to error: {e}")
 
@@ -722,7 +722,7 @@ def main():
         try:
             time.sleep(args.wait_before_start)
         except KeyboardInterrupt:
-            exit(1)
+            sys.exit(1)
 
     state = {
         "loop": args.loop,
@@ -733,7 +733,7 @@ def main():
     try:
         state = execute_action("on_start", state)
     except KeyboardInterrupt: # if plugin provides input access to user
-        exit(1)
+        sys.exit(1)
     if not state.get("prevent_load", False):
         if args.file:
             state["content"] = open_else_fatal(args.file)
